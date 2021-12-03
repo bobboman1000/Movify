@@ -8,27 +8,23 @@ from MusicServicSource import LibraryObject
 class YoutubeMusicSource:
 
     def __init__(self):
-        self.albums = None
-        self.library = pd.DataFrame(columns=["name", "artists", "type", "ytm_id"])
         try:
             self.ytmusic = YTMusic('headers_auth.json')
         except Exception:
             print("Cannot establish connection. Please check the integrity of your auth json.")
             sys.exit(1)
 
-    def fetch_albums_library(self):
+    def get_albums_library(self):
         albums_response = self.ytmusic.get_library_albums(limit=10000)
-        parse_album = lambda album: LibraryObject(album["title"], [artist["name"] for artist in album["artists"]], album["year"], album["type"])
-        self.albums = [parse_album(album) for album in albums_response]
-        return self.albums
+        albums = [self.parse_album(album) for album in albums_response]
+        return albums
 
-    def get_df(self):
-        if self.albums:
-            return pd.DataFrame([album.__dict__ for album in self.albums])
+    def parse_album(self, album):
+        return LibraryObject(album["title"], [artist["name"] for artist in album["artists"]],
+                            album["year"], album["type"], yt_id=album["id"])
+
+    def get_df(self, albums):
+        if albums:
+            return pd.DataFrame([album.__dict__ for album in albums])
         else:
             raise Exception("Albums not yet retrieved")
-
-
-
-yt = YoutubeMusicSource()
-test = yt.get_playlists()

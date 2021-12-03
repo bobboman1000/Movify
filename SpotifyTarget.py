@@ -3,6 +3,8 @@ from typing import Tuple
 import spotipy
 import re
 import tqdm
+from spotipy import SpotifyOAuth
+
 from MusicServicSource import LibraryObject
 import numpy as np
 import pandas as pd
@@ -21,6 +23,10 @@ class SpotifyTarget:
         auth_manager = spotipy.SpotifyClientCredentials(client_id=client_id, client_secret=client_secret)
         self.sp = spotipy.Spotify(auth_manager=auth_manager)
         self.logger = logging.getLogger("DEBUG")
+
+    def add_albums_to_library(self, spotify_ids, redirect_uri):
+        auth_sp = spotipy.Spotify(auth_manager=SpotifyOAuth(redirect_uri=redirect_uri))
+        auth_sp.current_user_saved_albums_add(spotify_ids)
 
     def get_spotify_album_ids(self, albums: list[LibraryObject]):
         album_ids_add: list[int] = []
@@ -55,7 +61,10 @@ class SpotifyTarget:
         confirmed_albums = [self.internal_id_to_spotify_id[review_album_tuple[0].id] for review_album_tuple in confirmed_albums]
         album_ids_add += confirmed_albums
 
-        [print(album_id_add) for album_id_add in album_ids_add]
+        return album_ids_add
+
+    def get_spotify_album_ids_series(self, albums: list[LibraryObject]):
+        pd.Series(self.get_spotify_album_ids(albums))
 
     def eliminate_dialogue(self, review_album_list: list[Tuple[LibraryObject, LibraryObject, int]]):
         print("The following albums could not be matched properly. Please deselect albums you do not want to add by "
