@@ -6,8 +6,8 @@
 
 Log in to your Youtube Music account in your browser (if not already done). Now you need to obtain the cookie sent with authorized.
 
-- Create a file named headers_auth.json. 
-- Copy the json object below to that file and insert a raw text version of the request cookie to the auth_json.
+- Create a file named headers_auth.json
+- Copy the json object below to that file and insert a raw text version of the request cookie into the .json file
 
 
 ```js
@@ -22,22 +22,18 @@ Log in to your Youtube Music account in your browser (if not already done). Now 
 }
 ```
 
-
-
 ## Step 2: Create Spotify Developer App and extract client id and secret
 
 - Go to [Spotify Developer Dashboard](https://developer.spotify.com/dashboard/login) and log in
-- Create an app with an arbitrary name.
-- Go to "Edit Settings" and enter the following URL as Redirect URL "https://mysite.com/callback".
-- Select "Show client secret" and save both, Client ID and Client Secret somewhere. It will be used as arguments in the script.
+- Create an app
+- Go to "Edit Settings" and enter the following URL as Redirect URL "https://mysite.com/callback"
+- Select "Show client secret" and save both, Client ID and Client Secret
 
 
 ## Step 3: Migrate
 
-Now that you obtained your login credentials for both sites, proceed and prepare your migration script.
+Now that you obtained your login credentials for both sites, proceed and prepare your migration script
 
-
-To migrate playlists
 ```python
 from SpotifyTarget import SpotifyTarget
 from YoutubeMusicSource import YoutubeMusicSource
@@ -51,7 +47,7 @@ yt = YoutubeMusicSource()
 
 
 # Migrating albums 
-album_lib = yt.get_albums_library()
+album_lib = yt.get_albums_library_df()
 sp_album_ids = sp.get_spotify_album_ids(album_lib)
 
 sp.add_albums_to_library(sp_album_ids, client_id, client_secret, redirect_uri)
