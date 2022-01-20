@@ -33,22 +33,24 @@ class SpotifyTarget:
         auth_sp = spotipy.Spotify(auth_manager=SpotifyOAuth(client_id, client_secret, redirect_uri, username="benno385",
                                                             scope="playlist-modify-private"))
         playlists = playlists.dropna()
+        playlists = playlists.reset_index(drop=True)
         playlists.sort_values(by=["playlist_title"])
+
+
         curr_playlist = None
-        start_idx = None
+        start_idx = 0
         for curr_idx, row in playlists.iterrows():
             if curr_playlist is None:
                 curr_playlist = row["playlist_title"]
                 continue
             if row["playlist_title"] != curr_playlist or curr_idx == playlists.shape[0] - 1:
-                curr_playlist = row["playlist_title"]
                 playlist_songs = playlists.iloc[start_idx:curr_idx, :]
                 song_ids = playlist_songs["spotify_id"]
-                start_idx = curr_idx
                 response = auth_sp.user_playlist_create(auth_sp.current_user()["id"], curr_playlist, public=False)
-
                 new_playlist_id = response["id"]
                 auth_sp.playlist_add_items(new_playlist_id, song_ids)
+                curr_playlist = row["playlist_title"]
+                start_idx = curr_idx
 
     def get_spotify_song_ids(self, df: pd.DataFrame) -> List[str]:
         song_ids_add = []
@@ -260,3 +262,4 @@ class SpotifyTarget:
     @staticmethod
     def parse_year(dates):
         return [str(date)[:4] for date in list(dates)]
+

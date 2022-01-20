@@ -37,6 +37,7 @@ class YoutubeMusicSource:
             df.insert(0, "playlist_id", playlist_obj["playlistId"])
             df.insert(0, "playlist_title", playlist_obj["title"])
             dfs.append(df)
+
         return reduce(lambda a, b: a.append(b), dfs)
 
     @staticmethod
