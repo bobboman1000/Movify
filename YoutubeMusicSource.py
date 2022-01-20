@@ -4,7 +4,6 @@ import sys
 
 import pandas as pd
 from ytmusicapi import YTMusic
-from MusicServicSource import AlbumObject
 
 
 class YoutubeMusicSource:
@@ -24,14 +23,6 @@ class YoutubeMusicSource:
         albums = albums.drop(["browseId", "thumbnails"], axis=1)
         return albums
 
-    def get_albums_library(self) -> List[AlbumObject]:
-        albums = self.get_albums_library_df()
-        album_list = []
-        for idx, row in albums.iterrows():
-            album = AlbumObject(row["title"], row["artists"], row["year"], row["type"])
-            album_list.append(album)
-        return album_list
-
     def get_playlists_library(self) -> pd.DataFrame:
         playlists = self._get_playlists_df()[["playlist_title", "playlist_id", "title", "artists", "duration"]]
         playlists["artists"] = self.parse_artists(playlists["artists"])
@@ -47,10 +38,6 @@ class YoutubeMusicSource:
             df.insert(0, "playlist_title", playlist_obj["title"])
             dfs.append(df)
         return reduce(lambda a, b: a.append(b), dfs)
-
-    def parse_album(self, album):
-        return AlbumObject(album["title"], self.parse_artist(album["artists"]),
-                           album["year"], album["type"], yt_id=album["browseId"])
 
     @staticmethod
     def parse_artist(object_artists_json) -> List[str]:

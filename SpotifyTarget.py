@@ -5,7 +5,6 @@ import re
 from tqdm import tqdm
 from spotipy import SpotifyOAuth
 
-from MusicServicSource import AlbumObject
 import numpy as np
 import pandas as pd
 import logging
@@ -14,14 +13,14 @@ from YoutubeMusicSource import YoutubeMusicSource
 
 
 class SpotifyTarget:
-    min_score = 3  # Smaller than 4
+    min_score = 2 # Smaller than 4
     max_album_post = 50
 
     song_response_mapper = {"name": "title", "artists": "artists", "id": "id"}
+    album_response_mapper = {"name": "title", "artists": "artists", "id": "id", "album_type": "_type",
+                             "release_date": "year"}
 
     def __init__(self, client_id=None, client_secret=None):
-        self.internal_id_to_spotify_id = dict()
-        self.artists_name_to_spotify_id_map = dict()
         if client_id is None or client_secret is None:
             client_id = input("Client id:")
             client_secret = getpass()
@@ -78,7 +77,7 @@ class SpotifyTarget:
         return song_ids_add
 
     def search_for_song(self, song: pd.Series):
-        search_string = song["title"] + " " + str(song["artists"]).replace("[", "").replace("]", "").replace("\'", "")
+        search_string = self.generate_search_string(song)
         response = self.sp.search(search_string, type="track")
         candidates = pd.DataFrame(response["tracks"]["items"])
 
@@ -116,7 +115,7 @@ class SpotifyTarget:
 
     ######### Album workflow ###########
 
-    def add_albums_to_library(self, spotify_ids: List[AlbumObject], client_id, client_secret, redirect_uri):
+    def add_albums_to_library(self, spotify_ids: List[str], client_id, client_secret, redirect_uri):
         auth_sp = spotipy.Spotify(auth_manager=SpotifyOAuth(client_id, client_secret, redirect_uri,
                                                             scope="user-library-modify"))
         batches = int(len(spotify_ids) / 50)
@@ -127,64 +126,54 @@ class SpotifyTarget:
             upper_idx = full_upper_idx if full_upper_idx <= len(spotify_ids) - 1 else len(spotify_ids) - 1
             auth_sp.current_user_saved_albums_add(spotify_ids[lower_idx:upper_idx])
 
-    def get_spotify_album_ids(self, albums: list[AlbumObject]):
-        album_ids_add: list[int] = []
-        review_album_list: list[Tuple[AlbumObject, AlbumObject, int]] = []
+    def get_spotify_album_ids(self, albums: pd.DataFrame) -> list[str]:
+        review_album_indices: list[int] = []
+        best_matches: list[pd.Series] = []
 
         found, ambiguous, not_found = 0, 0, 0
 
         print("Looking up albums on spotify...")
-        for target_album in tqdm(albums):
+        for idx, target_album in tqdm(albums.iterrows(), total=albums.shape[0]):
             best_candidate, score = self.search_for_album(target_album)
             if score >= self.min_score:
-                album_ids_add.append(self.internal_id_to_spotify_id[best_candidate.id])
-                self.logger.debug("\033[1;32;40m Found album: " + target_album.name + " by " + str(target_album.artists)
-                                  + "\033[0;37;40m")
                 found += 1
             elif score > 0:
-                review_album_list.append((best_candidate, target_album, score))
-                self.logger.debug("\033[1;33;40m Ambiguous result for " + target_album.name + " by "
-                                  + str(target_album.artists) + "\033[0;37;40m")
+                review_album_indices.append(idx)
                 ambiguous += 1
             else:
-                self.logger.debug("\034[1;31;40m Not found " + target_album.name + " by " + str(target_album.artists)
-                                  + "\033[0;37;40m")
                 not_found += 1
+            best_matches.append(best_candidate)
+
+        best_matches_ids = [song["id"] for song in best_matches]
+        albums.insert(0, "id", best_matches_ids)
 
         print(f"Results: \t \034[1;32;40m {found} \034[1;37;40m found, \034[1;33;40m {ambiguous} "
               f"\034[1;37;40m ambiguous, \034[1;31;40m {not_found} \034[1;37;40m not found \n")
 
-        confirmed_albums = self.eliminate_dialogue(review_album_list)
-        confirmed_albums = [self.internal_id_to_spotify_id[review_album_tuple[0].id] for review_album_tuple in
-                            confirmed_albums]
-        album_ids_add += confirmed_albums
+        drop_albums_idx = self.eliminate_dialogue(albums, review_album_indices, best_matches)
+        confirmed_albums = albums.drop(drop_albums_idx, axis=0)
+        confirmed_albums = confirmed_albums.dropna()
 
-        return album_ids_add
+        return confirmed_albums["id"]
 
-    def get_spotify_album_ids_series(self, albums: list[AlbumObject]):
-        pd.Series(self.get_spotify_album_ids(albums))
-
-    def eliminate_dialogue(self, review_album_list: list[Tuple[AlbumObject, AlbumObject, int]]):
+    def eliminate_dialogue(self, albums: pd.DataFrame, review_album_indices: list[int], best_matches: list[pd.Series]):
         print("The following albums could not be matched properly. Please deselect albums you do not want to add by "
               "entering their corresponding number (multiple possible, separated by commas.")
-        review_album_list = np.asarray(review_album_list)
+        review_album_list = np.asarray(review_album_indices)
+        drop: set = set()
 
-        def print_candidates():
-            cnt = 0
-            for album_candidate, target_album, score in review_album_list:
-                out = str(cnt) + "\t" + str(album_candidate.artists) + ": " + album_candidate.name \
-                      + "\t to \t" + str(target_album.artists) + ": " + target_album.name
+        def print_candidates(indices):
+            for idx, row in albums.iloc[indices, :].iterrows():
 
-                if score > self.min_score / 2:
+                if idx not in drop:
+                    out = str(idx) + "\t" + str(row["artists"]) + ": " + row["title"] \
+                          + "\t to \t" + str(best_matches[idx]["artists"]) + ": " + best_matches[idx]["title"]
+
                     out = "\033[1;33;40m" + out + "\033[1;37;40m"
-                else:
-                    out = "\033[1;31;40m" + out + "\033[1;37;40m"
-
-                print(out)
-                cnt += 1
+                    print(out)
 
         while True:
-            print_candidates()
+            print_candidates(review_album_list)
             print("If nothing should be edited, please type 'nothing'.")
             i = input()
             cleaned_i = i.replace(" ", "").split(",")
@@ -197,7 +186,8 @@ class SpotifyTarget:
                     print("Please only type in numbers separated with commas")
                     continue
 
-                review_album_list = np.delete(review_album_list, cleaned_i, axis=0)
+            for e in cleaned_i:
+                drop.add(e)
 
             while True:
                 i2 = input("Continue editing? y/n \n")
@@ -207,48 +197,52 @@ class SpotifyTarget:
                 elif i2 == "y":
                     break
 
-    def search_for_album(self, album_info):
-        query = self.generate_album_search_string(album_info)
+    def search_for_album(self, album_info) -> Tuple[pd.Series, int]:
+        query = self.generate_search_string(album_info)
         response = self.sp.search(query, type="album", limit=10)
         candidates = response["albums"]["items"]
-        best_candidate, score = self.select_best_candidate_album(album_info, candidates)
+        candidates = pd.DataFrame(candidates)
+
+        if candidates.empty:
+            empty = album_info
+            album_info["id"] = pd.NA
+            return empty, -1
+
+        attr_filtered_candidates = candidates[self.album_response_mapper]
+        attr_filtered_candidates = attr_filtered_candidates.rename(columns=self.album_response_mapper)
+        attr_filtered_candidates["year"] = self.parse_year(attr_filtered_candidates["year"])
+        attr_filtered_candidates["artists"] = YoutubeMusicSource.parse_artists(attr_filtered_candidates["artists"])
+        best_candidate, score = self.select_best_candidate_album(album_info, attr_filtered_candidates)
         return best_candidate, score
 
-    def select_best_candidate_album(self, target_album_info, candidates) -> Tuple[AlbumObject, int]:
+    def select_best_candidate_album(self, target_album: pd.Series, candidates: pd.DataFrame) -> Tuple[pd.Series, int]:
         scores = []
         candidate_album_infos = []
-        for hit in candidates:
-            album_info = self.parse_album(hit)
-            candidate_album_infos.append(album_info)
-            scores.append(self.similarity_score(album_info, target_album_info))
+        for idx, hit in candidates.iterrows():
+            candidate_album_infos.append(hit)
+            scores.append(self.similarity_score_df(target_album, hit))
 
         if len(scores) > 0:
             best_hit_index = np.argmax(scores)
             best_hit = candidate_album_infos[best_hit_index]
             best_hit_score = scores[best_hit_index]
         else:
-            best_hit = AlbumObject("Not found", ["None"], 0, "None")
+            best_hit = pd.Series(index=target_album.index)
             best_hit_score = 0
 
         return best_hit, best_hit_score
 
     @staticmethod
-    def generate_album_search_string(album_info: AlbumObject):
-        search_string = album_info.name
-
-        for artist in album_info.artists:
-            search_string += " " + artist
-
+    def generate_search_string(obj: pd.Series):
+        search_string = obj["title"] + " " + str(obj["artists"]).replace("[", "").replace("]", "").replace("\'", "")
         return search_string
 
     @staticmethod
-    def similarity_score(album_1: AlbumObject, album_2: AlbumObject):
+    def similarity_score(album_1: pd.Series, album_2: pd.Series):
         score = 0
-        album_1_dict = album_1.__dict__
-        album_2_dict = album_2.__dict__
 
-        for attr in album_1_dict:
-            if album_1_dict[attr] == album_2_dict[attr]:
+        for attr in album_1.index.values:
+            if album_1[attr] == album_2[attr]:
                 score += 1
         return score
 
@@ -258,42 +252,11 @@ class SpotifyTarget:
 
         common_idx = a.keys().intersection(b.keys())
         for attr in common_idx:
-            if a[attr] == b[attr]:
+            if str(a[attr]).lower() == str(b[attr]).lower():
                 score += 1
+
         return score
 
-    def parse_album(self, spotify_album_object):
-        type_ = spotify_album_object["album_type"]
-        album_name = spotify_album_object["name"]
-        release_date = spotify_album_object["release_date"]
-        album_spotify_id = spotify_album_object["id"]
-
-        artists = []
-        for artist in spotify_album_object["artists"]:
-            artist_name = artist["name"]
-            artist_id = artist["id"]
-            artists.append(artist_name)
-            self.register_artist(artist_name, artist_id)
-
-        year = None
-        if re.match("[0-9]{4}-[0-9]{2}-[0-9]{2}", release_date):
-            year = release_date.split("-")[0]
-
-        album = AlbumObject(album_name, artists, year, type_)
-        self.register_album(album.id, album_spotify_id)
-
-        return album
-
-    def register_artist(self, name, spotify_artist_id):
-        successful = False
-        if name not in self.artists_name_to_spotify_id_map:
-            self.artists_name_to_spotify_id_map[name] = spotify_artist_id
-            successful = True
-        return successful
-
-    def register_album(self, internal_id, spotify_album_id):
-        successful = False
-        if internal_id not in self.internal_id_to_spotify_id:
-            self.internal_id_to_spotify_id[internal_id] = spotify_album_id
-            successful = True
-        return successful
+    @staticmethod
+    def parse_year(dates):
+        return [str(date)[:4] for date in list(dates)]
