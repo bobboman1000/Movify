@@ -4,7 +4,7 @@ import sys
 
 import pandas as pd
 from ytmusicapi import YTMusic
-from MusicServicSource import LibraryObject
+from MusicServicSource import AlbumObject
 
 
 class YoutubeMusicSource:
@@ -17,10 +17,20 @@ class YoutubeMusicSource:
             print(e)
             sys.exit(1)
 
-    def get_albums_library(self) -> List[LibraryObject]:
+    def get_albums_library_df(self) -> pd.DataFrame:
         albums_response = self.ytmusic.get_library_albums(limit=10000)
-        albums = [self.parse_album(album) for album in albums_response]
+        albums = pd.DataFrame(albums_response)
+        albums["artists"] = self.parse_artists(albums["artists"])
+        albums = albums.drop(["browseId", "thumbnails"], axis=1)
         return albums
+
+    def get_albums_library(self) -> List[AlbumObject]:
+        albums = self.get_albums_library_df()
+        album_list = []
+        for idx, row in albums.iterrows():
+            album = AlbumObject(row["title"], row["artists"], row["year"], row["type"])
+            album_list.append(album)
+        return album_list
 
     def get_playlists_library(self) -> pd.DataFrame:
         playlists = self._get_playlists_df()[["playlist_title", "playlist_id", "title", "artists", "duration"]]
@@ -28,7 +38,7 @@ class YoutubeMusicSource:
         return playlists
 
     def _get_playlists_df(self) -> pd.DataFrame:
-        playlists_response = self.ytmusic.get_library_playlists(limit=50)
+        playlists_response = self.ytmusic.get_library_playlists(limit=30)
 
         dfs = []
         for playlist_obj in playlists_response:
@@ -36,22 +46,19 @@ class YoutubeMusicSource:
             df.insert(0, "playlist_id", playlist_obj["playlistId"])
             df.insert(0, "playlist_title", playlist_obj["title"])
             dfs.append(df)
-
         return reduce(lambda a, b: a.append(b), dfs)
 
     def parse_album(self, album):
-        return LibraryObject(album["title"], self.parse_artist(album["artists"]),
-                            album["year"], album["type"], yt_id=album["browseId"])
+        return AlbumObject(album["title"], self.parse_artist(album["artists"]),
+                           album["year"], album["type"], yt_id=album["browseId"])
 
-    def parse_artist(self, object_artists_json) -> List[str]:
+    @staticmethod
+    def parse_artist(object_artists_json) -> List[str]:
         return [object_artist["name"] for object_artist in list(object_artists_json)]
 
-    def parse_artists(self, artists_json) -> List[List[str]]:
-        return [self.parse_artist(object_artists) for object_artists in artists_json]
-
-    def get_albums_df(self, albums):
-        if albums:
-            return pd.DataFrame([album.__dict__ for album in albums])
+    @staticmethod
+    def parse_artists(artists_json, as_str=True) -> Union[list[str], list[list[str]]]:
+        if as_str:
+            return [str(YoutubeMusicSource.parse_artist(object_artists)) for object_artists in list(artists_json)]
         else:
-            raise Exception("Albums not yet retrieved")
-
+            return [YoutubeMusicSource.parse_artist(object_artists) for object_artists in list(artists_json)]
