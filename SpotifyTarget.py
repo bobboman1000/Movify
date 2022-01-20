@@ -1,5 +1,5 @@
 from getpass import getpass
-from typing import Tuple, List
+from typing import Tuple, List, Callable
 import spotipy
 import re
 from tqdm import tqdm
@@ -13,7 +13,7 @@ from YoutubeMusicSource import YoutubeMusicSource
 
 
 class SpotifyTarget:
-    min_score = 2 # Smaller than 4
+    min_score = 2  # Smaller than 4
     max_album_post = 50
 
     song_response_mapper = {"name": "title", "artists": "artists", "id": "id"}
@@ -36,7 +36,6 @@ class SpotifyTarget:
         playlists = playlists.reset_index(drop=True)
         playlists.sort_values(by=["playlist_title"])
 
-
         curr_playlist = None
         start_idx = 0
         for curr_idx, row in playlists.iterrows():
@@ -48,7 +47,9 @@ class SpotifyTarget:
                 song_ids = playlist_songs["spotify_id"]
                 response = auth_sp.user_playlist_create(auth_sp.current_user()["id"], curr_playlist, public=False)
                 new_playlist_id = response["id"]
-                auth_sp.playlist_add_items(new_playlist_id, song_ids)
+
+                add_to_new_pl = lambda songs: auth_sp.playlist_add_items(new_playlist_id, song_ids)
+                self.execute_in_batches(add_to_new_pl, song_ids, limit=100)
                 curr_playlist = row["playlist_title"]
                 start_idx = curr_idx
 
@@ -120,13 +121,7 @@ class SpotifyTarget:
     def add_albums_to_library(self, spotify_ids: List[str], client_id, client_secret, redirect_uri):
         auth_sp = spotipy.Spotify(auth_manager=SpotifyOAuth(client_id, client_secret, redirect_uri,
                                                             scope="user-library-modify"))
-        batches = int(len(spotify_ids) / 50)
-        for i in range(batches + 1):
-            lower_idx = i * 50
-
-            full_upper_idx = (i + 1) * 50
-            upper_idx = full_upper_idx if full_upper_idx <= len(spotify_ids) - 1 else len(spotify_ids) - 1
-            auth_sp.current_user_saved_albums_add(spotify_ids[lower_idx:upper_idx])
+        self.execute_in_batches(auth_sp.current_user_saved_albums_add,  spotify_ids, 50)
 
     def get_spotify_album_ids(self, albums: pd.DataFrame) -> list[str]:
         review_album_indices: list[int] = []
@@ -263,3 +258,12 @@ class SpotifyTarget:
     def parse_year(dates):
         return [str(date)[:4] for date in list(dates)]
 
+    @staticmethod
+    def execute_in_batches(func: Callable, _list: list, limit: int, ):
+        batches = int(len(_list) / limit)
+        for i in range(batches + 1):
+            lower_idx = i * limit
+
+            full_upper_idx = (i + 1) * limit
+            upper_idx = full_upper_idx if full_upper_idx <= len(_list) - 1 else len(_list) - 1
+            func(_list[lower_idx:upper_idx])
