@@ -9,8 +9,8 @@ Log in to your Youtube Music account in your browser (if not already done). Now 
 - Create a file named headers_auth.json. 
 - Copy the json object below to that file and insert a raw text version of the request cookie to the auth_json.
 
-<code>
 
+```js
 {
   "User-Agent": "Browser",
   "Accept": "*/*",
@@ -20,8 +20,7 @@ Log in to your Youtube Music account in your browser (if not already done). Now 
   "x-origin": "https://music.youtube.com",
   "Cookie": "Insert your cookie here"
 }
-
-</code>
+```
 
 
 
@@ -39,7 +38,10 @@ Now that you obtained your login credentials for both sites, proceed and prepare
 
 
 To migrate playlists
-<code>
+```python
+from SpotifyTarget import SpotifyTarget
+from YoutubeMusicSource import YoutubeMusicSource
+
 client_id="SOME_CLIENT_ID"
 client_secret="SOME_CLIENT_SECRET"
 redirect_uri = "https://mysite.com/callback"
@@ -61,4 +63,5 @@ sp_ids = sp.get_spotify_song_ids(pl_lib)
 pl_lib.insert(0, "spotify_id", sp_ids)
 
 sp.add_playlists_to_library(pl_lib, client_id, client_secret, redirect_uri)
-</code>
+
+```
