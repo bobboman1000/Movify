@@ -1,5 +1,0 @@
-setup.py
-src/movify.egg-info/PKG-INFO
-src/movify.egg-info/SOURCES.txt
-src/movify.egg-info/dependency_links.txt
-src/movify.egg-info/top_level.txt

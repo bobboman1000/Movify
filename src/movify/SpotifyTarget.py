@@ -28,9 +28,9 @@ class SpotifyTarget:
         self.sp = spotipy.Spotify(auth_manager=auth_manager)
         self.logger = logging.getLogger("DEBUG")
 
-    def add_playlists_to_library(self, playlists: pd.DataFrame, client_id, client_secret, redirect_uri):
+    def add_playlists_to_library(self, playlists: pd.DataFrame, client_id, client_secret, redirect_uri, username):
 
-        auth_sp = spotipy.Spotify(auth_manager=SpotifyOAuth(client_id, client_secret, redirect_uri, username="benno385",
+        auth_sp = spotipy.Spotify(auth_manager=SpotifyOAuth(client_id, client_secret, redirect_uri, username=username,
                                                             scope="playlist-modify-private"))
         playlists = playlists.dropna()
         playlists = playlists.reset_index(drop=True)
