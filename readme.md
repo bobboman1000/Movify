@@ -40,6 +40,7 @@ from YoutubeMusicSource import YoutubeMusicSource
 
 client_id="SOME_CLIENT_ID"
 client_secret="SOME_CLIENT_SECRET"
+user="YOUR USERNAME"
 redirect_uri = "https://mysite.com/callback"
 
 sp = SpotifyTarget(client_id, client_id)
@@ -58,6 +59,6 @@ pl_lib = yt.get_playlists_library()
 sp_ids = sp.get_spotify_song_ids(pl_lib)
 pl_lib.insert(0, "spotify_id", sp_ids)
 
-sp.add_playlists_to_library(pl_lib, client_id, client_secret, redirect_uri)
+sp.add_playlists_to_library(pl_lib, client_id, client_secret, redirect_uri, user)
 
 ```
