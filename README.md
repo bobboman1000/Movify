@@ -36,8 +36,8 @@ Log in to your Youtube Music account in your browser (if not already done). Now 
 Now that you obtained your login credentials for both sites, proceed and prepare your migration script
 
 ```python
-from SpotifyTarget import SpotifyTarget
-from YoutubeMusicSource import YoutubeMusicSource
+from movify.SpotifyTarget import SpotifyTarget
+from movify.YoutubeMusicSource import YoutubeMusicSource
 
 client_id="SOME_CLIENT_ID"
 client_secret="SOME_CLIENT_SECRET"
