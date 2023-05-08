@@ -1,6 +1,7 @@
 # Migrate Youtube Music Library to Spotify
 
-
+Movify is a cli-tool that enables migrating your whole Youtube Music Library to Spotify. This not only includes playlists, but also albums–for everyone who likes to listen to an entire album.
+Due to naming issues this is a two-step-process: Before importing the tool will prompt you to distinguish amiguous examples. hf with spotify
 
 ## Step 1: Obtain YoutubeMusic Cookie
 
