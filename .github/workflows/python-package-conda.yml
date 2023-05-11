@@ -17,7 +17,7 @@ jobs:
     - name: Install dependencies
       run: |
         pip install -r requirements.txt
-        pip install ./movify
+        pip install .
     - name: Test with pytest
       run: |
         pip install pytest
